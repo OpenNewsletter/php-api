@@ -1,10 +1,15 @@
 <?php
 /*
-	Newsletter Api
-	Manage a newsletter
+	OpenNewsletter php-api
+	Description : Manage a newsletter
 	Dependencies :
-		Nemesis-core : Loader, URL, Router, Session, Api, functions
-		Others : PHPMailer
+		NemesisFramework/core
+			core/class.Loader.php
+			core/class.URL.php
+			core/class.Router.php
+			core/class.Session.php
+			core/class.Api.php
+			core/class.functions.php
 */
 
 include_once 'core/bootstrap.php';
@@ -81,7 +86,6 @@ class Newsletter
 	{
 		try
 		{
-
 			if (!$this->db)
 			{
 				$this->db = new PDO("sqlite:".NEMESIS_PATH."newsletter.sqlite");
@@ -204,6 +208,20 @@ class Newsletter
 			switch ($_SERVER['REQUEST_METHOD'])
 			{
 				case 'GET' :
+					if (isset($_REQUEST['drafts']))
+					{
+						if (!$this->isAdminSession())
+							Api::unauthorized();
+						
+						$nbOfItems = Api::getNextHash();
+						$this->dbQuery('SELECT * FROM newsletters WHERE date = 0 ORDER BY id DESC:limit', array(':limit' => ($nbOfItems)? ' LIMIT '.$nbOfItems:''));
+
+						if (!$this->dbResult[0] || $this->dbResult[0] && !$r=$this->dbResult[0]->fetchAll(SQLITE_ASSOC))
+							Api::error('There is not any newsletter from the database');
+
+						Api::data($r);
+					}
+					
 					$nbOfItems = Api::getNextHash();
 					$this->dbQuery('SELECT * FROM posts WHERE date > 0 AND sending = -1 ORDER BY date DESC:limit', array(':limit' => ($nbOfItems)? ' LIMIT '.$nbOfItems:''));
 
@@ -246,26 +264,6 @@ class Newsletter
 			}
 
 	}
-
-	public function drafts ()
-	{
-		if (!$this->isAdminSession())
-			Api::unauthorized();
-
-		switch ($_SERVER['REQUEST_METHOD'])
-		{
-			case 'GET' :
-				$nbOfItems = Api::getNextHash();
-				$this->dbQuery('SELECT * FROM newsletters WHERE date = 0 ORDER BY id DESC:limit', array(':limit' => ($nbOfItems)? ' LIMIT '.$nbOfItems:''));
-
-				if (!$this->dbResult[0] || $this->dbResult[0] && !$r=$this->dbResult[0]->fetchAll(SQLITE_ASSOC))
-					Api::error('There is not any newsletter from the database');
-
-				Api::data($r);
-			break;
-		}
-	}
-
 
 }
 
