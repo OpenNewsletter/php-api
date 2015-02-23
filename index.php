@@ -37,7 +37,7 @@ class Newsletter
 
 	public function errors ()
 	{
-		echo file_get_content(CORE.'errors.log');
+		echo file_get_contents(CORE.'errors.log');
 	}
 
 	public function login()
