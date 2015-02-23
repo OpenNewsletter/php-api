@@ -1,6 +1,6 @@
 {
     "admin": {
-        "user": "kimi",
-        "password": "hihihi"
+        "user": "admin",
+        "password": "admin"
     }
 }
