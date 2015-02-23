@@ -35,6 +35,11 @@ class Newsletter
 		$this->config = json_decode(file_get_contents(NEMESIS_PATH.'config.json'), true);
 	}
 
+	public function errors ()
+	{
+		echo file_get_content(CORE.'errors.log');
+	}
+
 	public function login()
 	{
 		if ($this->isAdminSession())
@@ -235,8 +240,16 @@ class Newsletter
 					if (!$this->isAdminSession())
 						Api::unauthorized();
 
-					if (!isset($_REQUEST['body']) && !isset($_REQUEST['subject']))
-						Api::error('$_REQUEST[\'body\'] and/or $_REQUEST[\'object\'] are missing');
+					$errors = array();
+
+					if (!isset($_REQUEST['body']))
+						$errors[] = array('field' => 'body', 'message' => 'body can\'t be blank');
+
+					if (!isset($_REQUEST['object']))
+						$errors[] = array('field' => 'object', 'message' => 'object can\'t be blank');
+
+					if (sizeof($errors) > 0)
+						Api::error('Blank field', $errors);
 
 					$this->dbQuery('INSERT INTO posts (object, body, date, sending) VALUES (":object", ":body", 0, -1)', array(':object' => $_REQUEST['object'], ':body' => $_REQUEST['body']));
 					Api::success();
@@ -247,12 +260,48 @@ class Newsletter
 					if (!$this->isAdminSession())
 						Api::unauthorized();
 
+					$errors = array();
+
+					$id = Api::getNextHash();
+
+					if (!$id)
+						$errors[] = array('field' => 'id', 'message' => 'id can\'t be blank');
+
+					if (!isset($_REQUEST['body']))
+						$errors[] = array('field' => 'body', 'message' => 'body can\'t be blank');
+
+					if (!isset($_REQUEST['object']))
+						$errors[] = array('field' => 'object', 'message' => 'object can\'t be blank');
+
+					if (sizeof($errors) > 0)
+						Api::error('Blank field', $errors);
+
+
+					$this->dbQuery('UPDATE posts SET object = ":object", body = ":body" WHERE id = ":id"', array(':id' => $id, ':object' => $_REQUEST['object'], ':body' => $_REQUEST['body']));
+					Api::success();
 				break;
 
 				/*send*/
 				case 'PUT':
-				if (!$this->isAdminSession())
-					Api::unauthorized();
+					if (!$this->isAdminSession())
+						Api::unauthorized();
+
+					$errors = array();
+
+					$id = Api::getNextHash();
+
+					if (!$id)
+						$errors[] = array('field' => 'id', 'message' => 'id can\'t be blank');
+
+					if (sizeof($errors) > 0)
+						Api::error('Blank field', $errors);
+
+					$this->dbQuery('SELECT object, body FROM posts WHERE id = ":id"', array(':id' => $id), 0);
+
+					if (!$this->dbResult[0] || $this->dbResult[0] && !$p=$this->dbResult[0]->fetch())
+						Api::error('This id does not exist', $errors);
+
+					$this->send($id, $p['object'], $p['body']);
 
 				break;
 
@@ -262,6 +311,23 @@ class Newsletter
 
 				break;
 			}
+
+			private funtion send($id, $object, $body)
+			{
+				$this->dbQuery('UPDATE posts SET sending = "0" WHERE id = ":id"', array(':id' => $id));
+
+
+				$this->dbQuery('SELECT id, email FROM subscribers');
+
+				while ($this->dbResult[0] && $r=$this->dbResult[0]->fetch()) {
+					$r['email'], $object, $body;
+					$this->dbQuery('UPDATE posts SET sending = ":sid" WHERE id = ":id"', array(':sid' => $r['id'], ':id' => $id));
+				}
+
+				$this->dbQuery('UPDATE posts SET sending = -1, date = :now WHERE id = ":id"', array(':now' => time(), ':id' => $id));
+			}
+
+
 
 	}
 
