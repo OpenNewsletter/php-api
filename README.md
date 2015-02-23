@@ -1,2 +1,2 @@
-# php-api
-PHP Api for OpenNewsletter
+php-api
+=============================
