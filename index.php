@@ -9,7 +9,7 @@
 			core/class.Router.php
 			core/class.Session.php
 			core/class.Api.php
-			core/class.functions.php
+			core/functions.php
 */
 
 include_once 'core/bootstrap.php';
@@ -212,7 +212,7 @@ class Newsletter
 					{
 						if (!$this->isAdminSession())
 							Api::unauthorized();
-						
+
 						$nbOfItems = Api::getNextHash();
 						$this->dbQuery('SELECT * FROM newsletters WHERE date = 0 ORDER BY id DESC:limit', array(':limit' => ($nbOfItems)? ' LIMIT '.$nbOfItems:''));
 
@@ -221,7 +221,7 @@ class Newsletter
 
 						Api::data($r);
 					}
-					
+
 					$nbOfItems = Api::getNextHash();
 					$this->dbQuery('SELECT * FROM posts WHERE date > 0 AND sending = -1 ORDER BY date DESC:limit', array(':limit' => ($nbOfItems)? ' LIMIT '.$nbOfItems:''));
 
