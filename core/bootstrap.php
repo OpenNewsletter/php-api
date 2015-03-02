@@ -16,7 +16,7 @@ define('NEMESIS_URL', str_replace('\\', '', (trim( urldecode( NEMESIS_SCHEME . N
 
 // ERRORS
 error_reporting(E_ALL);
-ini_set('display_errors', 'On');
+ini_set('display_errors', 0);
 ini_set('log_errors', 'On');
 ini_set('error_log', CORE.'errors.log');
 ini_set('ignore_repeated_errors', 'On');
