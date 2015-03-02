@@ -22,11 +22,14 @@ class Session
 			session_regenerate_id();
 	}
 
-	public function check($name, $key)
+	public function check($name, $key=0)
 	{
 		if (!isset($_SESSION[$name]))
 			return false;
 
+		if (!$key)
+			return true; 
+		
 		$hash = $this->token($key);
 
 		if (($_SESSION[$name]['token'] != $hash) || ($_SESSION[$name]['time'] < time()))
