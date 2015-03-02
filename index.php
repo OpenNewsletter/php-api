@@ -1,9 +1,9 @@
 <?php
 /*
-	OpenNewsletter php-api
+	nemesis-newsletter
 	Description : Manage a newsletter
 	Dependencies :
-		NemesisFramework/core
+		nemesis-framework/core
 			core/class.Loader.php
 			core/class.URL.php
 			core/class.Router.php
@@ -12,9 +12,18 @@
 			core/functions.php
 */
 
-include_once 'core/bootstrap.php';
+/*
+* Load the NemesisFramework boostraper.
+*/
+require 'core/bootstrap.php';
 core_functions();
 core_autoloader();
+
+/*
+* Load the Composer autoloader.
+*/
+if (file_exists($composerAutoloader=NEMESIS_PATH.'vendor/autoload.php'))
+	require $composerAutoloader;
 
 $Loader = Loader::getInstance();
 $Loader->initClass('Router');
@@ -30,11 +39,6 @@ class Newsletter
 
 	private $session = null;
 
-	public function __construct()
-	{
-		$this->config = json_decode(file_get_contents(NEMESIS_PATH.'config.json'), true);
-	}
-
 	public function errors ()
 	{
 		echo file_get_contents(CORE.'errors.log');
@@ -49,19 +53,21 @@ class Newsletter
 		{
 			$errors = array();
 
-			if (!isset($_REQUEST['user']))
-				$errors[] = array('field' => 'user', 'message' => 'User can\'t be blank');
+			if (!isset($_REQUEST['email']))
+				$errors[] = array('field' => 'email', 'message' => 'Email can\'t be blank');
 
 			if (!isset($_REQUEST['pwd']))
 				$errors[] = array('field' => 'pwd', 'message' => 'Password can\'t be blank');
 
 			if (sizeof($errors) > 0)
 				Api::error('Blank field', $errors);
+			
+			$this->dbQuery('SELECT email, pwd FROM admins WHERE email = ":email" AND pwd = ":pwd"', array(':email' => $_REQUEST['email'], ':pwd' => $this->pwdHash($_REQUEST['pwd'])))
+			
+			if (!$this->dbResult[0] || $this->dbResult[0] && $this->dbResult[0]->fetch())
+				Api::error('Wrong email or password');
 
-			if (($_REQUEST['user'] != $this->config['admin']['user']) || ($_REQUEST['pwd'] != $this->config['admin']['password']))
-				Api::error('Wrong user or password');
-
-			$this->createAdminSession();
+			$this->createAdminSession($_REQUEST['email'], $_REQUEST['pwd']);
 			Api::success();
 		}
 	}
@@ -73,18 +79,18 @@ class Newsletter
 		Api::success();
 	}
 
-	private function isAdminSession ()
+	private function isAdminSession ($u='', $p='', $install=0)
 	{
 		$this->session = new Session();
-		return $this->session->check('newsletter', $this->config['admin']['user'].'|'.$this->config['admin']['password']);
+		return $this->session->check('newsletter'.(($install)? '-install':''), (($u && $p)? $u.'|'.$this->pwdHash($p):0));
 	}
 
-	private function createAdminSession ()
+	private function createAdminSession ($u, $p, $install=0)
 	{
 		if (!$this->session)
 			$this->session = new Session();
 
-		$this->session->secure('newsletter', $this->config['admin']['user'].'|'.$this->config['admin']['password']);
+		$this->session->secure('newsletter'.(($install)? '-install':''),  $u.'|'.$this->pwdHash($p));
 	}
 
 	private function dbQuery ($dbQuery, $params=array(), $transactionFinalQuery=1)
@@ -110,11 +116,79 @@ class Newsletter
 			Api::error($e->getMessage());
 		}
 	}
+	
+	private function pwdHash($pwd)
+	{
+		require 'lib/password.php';
+		return password_hash($pwd, PASSWORD_BCRYPT, array("cost" => 7, "salt" => "newsletterS"));
+	}
+	
+	private function pwdGenerator() 
+	{
+		$alphabet = "abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUWXYZ0123456789";
+		$pass = array(); 
+		$alphaLength = strlen($alphabet) - 1;
+		for ($i = 0; $i < 8; $i++) 
+		{
+			$n = rand(0, $alphaLength);
+			$pass[] = $alphabet[$n];
+		}
+		return implode($pass);
+	}
 
 	public function install ()
 	{
-		if (!$this->isAdminSession())
-			Api::unauthorized();
+		
+		if ($_SERVER['REQUEST_METHOD'] == 'GET')
+		{
+			$errors = array();
+
+			if (!isset($_REQUEST['email']))
+				$errors[] = array('field' => 'email', 'message' => 'Email can\'t be blank');
+
+			if (sizeof($errors) > 0)
+				Api::error('Blank field', $errors);
+
+			if (!is_email($_REQUEST['email']))
+				Api::error('Wrong email');
+			
+			$errors = array();
+			
+			if ($admin=$this->isAdminSession('','',1) && !isset($_REQUEST['pwd']))
+				$errors[] = array('field' => 'pwd', 'message' => 'Pwd can\'t be blank');
+			
+			if (sizeof($errors) > 0)
+				Api::error('Blank field', $errors);
+			
+			if (!$admin || !$this->isAdminSession($_REQUEST['email'], $_REQUEST['pwd'], 1))
+			{
+				$randomPassword = $this->pwdGenerator();
+				
+				require 'PHPMailerAutoload.php';
+				$mail = new PHPMailer;
+				$mail->From = 'noreply@'.URL::$request['DOMAIN'];
+				$mail->FromName = 'Newsletter API';
+				$mail->addAddress($_REQUEST['email']); 
+				$mail->Subject = 'Admin Password';
+				$mail->AltBody = 'Password to sign in as '.$_REQUEST['email'].' : '.$randomPassword;
+				
+				if(!$mail->send()) 
+					Api::error($mail->ErrorInfo);
+				
+				$this->createAdminSession($_REQUEST['email'], $randomPassword, 1);
+				Api::success();
+			}
+			
+			$this->session->kill('newsletter-install');
+			$this->createAdminSession($_REQUEST['email'], $_REQUEST['pwd']);
+		}
+		
+		if (!file_exists($db=NEMESIS_PATH.'newsletter.sqlite'))
+		{
+			chmod(NEMESIS_PATH, 0777);
+			touch($db);
+			chmod(NEMESIS_PATH, 0755);
+		}
 
 		$structure = '
 		CREATE TABLE IF NOT EXISTS subscribers (
@@ -128,9 +202,15 @@ class Newsletter
 			object TEXT,
 			body TEXT
 		);
+		CREATE TABLE IF NOT EXISTS admins (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			email TEXT,
+			pwd TEXT
+		);
 		';
 
 		$this->dbQuery($structure);
+		$this->dbQuery('INSERT INTO admins (email, pwd) VALUES (":email", ":pwd")', array(':email' => $_REQUEST['email'], ':pwd' => $this->pwdHash($_REQUEST['pwd'])));
 		Api::success();
 	}
 
@@ -312,8 +392,12 @@ class Newsletter
 			break;
 		}
 	}
+	
+	public function settings ()
+	{
+	}
 
-	private funtion send($id, $object, $body)
+	private function send($id, $object, $body)
 	{
 		$this->dbQuery('UPDATE posts SET sending = "0" WHERE id = ":id"', array(':id' => $id));
 
@@ -321,7 +405,19 @@ class Newsletter
 		$this->dbQuery('SELECT id, email FROM subscribers');
 
 		while ($this->dbResult[0] && $r=$this->dbResult[0]->fetch()) {
-			$r['email'], $object, $body;
+			//$r['email'], $object, $body;
+			require 'PHPMailerAutoload.php';
+			$mail = new PHPMailer;
+			$mail->isHTML(true);
+			$mail->From = 'noreply@'.URL::$request['DOMAIN'];
+			$mail->FromName = 'Newsletter API';
+			$mail->addAddress($r['email']); 
+			$mail->Subject = $object;
+			$mail->Body = $body;
+			
+			if(!$mail->send()) 
+				Api::error($mail->ErrorInfo);
+			
 			$this->dbQuery('UPDATE posts SET sending = ":sid" WHERE id = ":id"', array(':sid' => $r['id'], ':id' => $id));
 		}
 
