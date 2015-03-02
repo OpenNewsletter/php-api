@@ -68,3 +68,20 @@ if (!function_exists('getperms')) {
 
 }
 
+if (!function_exists('url_get_contents')) {
+
+	function url_get_contents ($Url) {
+		if (!function_exists('curl_init')){
+			error_log('curl is not installed');
+			return false;
+		}
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $Url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, true);
+		$output = curl_exec($ch);
+		curl_close($ch);
+		return $output;
+	}
+
+}
