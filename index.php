@@ -61,9 +61,9 @@ class Newsletter
 
 			if (sizeof($errors) > 0)
 				Api::error('Blank field', $errors);
-			
+
 			$this->dbQuery('SELECT email, pwd FROM admins WHERE email = ":email" AND pwd = ":pwd"', array(':email' => $_REQUEST['email'], ':pwd' => $this->pwdHash($_REQUEST['pwd'])))
-			
+
 			if (!$this->dbResult[0] || $this->dbResult[0] && $this->dbResult[0]->fetch())
 				Api::error('Wrong email or password');
 
@@ -82,7 +82,7 @@ class Newsletter
 	private function isAdminSession ($u='', $p='', $install=0)
 	{
 		$this->session = new Session();
-		return $this->session->check('newsletter'.(($install)? '-install':''), (($u && $p)? $u.'|'.$this->pwdHash($p):0));
+		return $this->session->check('newsletter'.(($install)? '-install':''));
 	}
 
 	private function createAdminSession ($u, $p, $install=0)
@@ -90,7 +90,7 @@ class Newsletter
 		if (!$this->session)
 			$this->session = new Session();
 
-		$this->session->secure('newsletter'.(($install)? '-install':''),  $u.'|'.$this->pwdHash($p));
+		$this->session->secure('newsletter'.(($install)? '-install':''));
 	}
 
 	private function dbQuery ($dbQuery, $params=array(), $transactionFinalQuery=1)
@@ -116,29 +116,16 @@ class Newsletter
 			Api::error($e->getMessage());
 		}
 	}
-	
+
 	private function pwdHash($pwd)
 	{
 		require 'lib/password.php';
 		return password_hash($pwd, PASSWORD_BCRYPT, array("cost" => 7, "salt" => "newsletterS"));
 	}
-	
-	private function pwdGenerator() 
-	{
-		$alphabet = "abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUWXYZ0123456789";
-		$pass = array(); 
-		$alphaLength = strlen($alphabet) - 1;
-		for ($i = 0; $i < 8; $i++) 
-		{
-			$n = rand(0, $alphaLength);
-			$pass[] = $alphabet[$n];
-		}
-		return implode($pass);
-	}
 
 	public function install ()
 	{
-		
+
 		if ($_SERVER['REQUEST_METHOD'] == 'GET')
 		{
 			$errors = array();
@@ -151,38 +138,38 @@ class Newsletter
 
 			if (!is_email($_REQUEST['email']))
 				Api::error('Wrong email');
-			
+
 			$errors = array();
-			
+
 			if ($admin=$this->isAdminSession('','',1) && !isset($_REQUEST['pwd']))
 				$errors[] = array('field' => 'pwd', 'message' => 'Pwd can\'t be blank');
-			
+
 			if (sizeof($errors) > 0)
 				Api::error('Blank field', $errors);
-			
+
 			if (!$admin || !$this->isAdminSession($_REQUEST['email'], $_REQUEST['pwd'], 1))
 			{
-				$randomPassword = $this->pwdGenerator();
-				
+				$randomPassword = key_generator(8);
+
 				require 'PHPMailerAutoload.php';
 				$mail = new PHPMailer;
 				$mail->From = 'noreply@'.URL::$request['DOMAIN'];
 				$mail->FromName = 'Newsletter API';
-				$mail->addAddress($_REQUEST['email']); 
+				$mail->addAddress($_REQUEST['email']);
 				$mail->Subject = 'Admin Password';
 				$mail->AltBody = 'Password to sign in as '.$_REQUEST['email'].' : '.$randomPassword;
-				
-				if(!$mail->send()) 
+
+				if(!$mail->send())
 					Api::error($mail->ErrorInfo);
-				
+
 				$this->createAdminSession($_REQUEST['email'], $randomPassword, 1);
 				Api::success();
 			}
-			
+
 			$this->session->kill('newsletter-install');
 			$this->createAdminSession($_REQUEST['email'], $_REQUEST['pwd']);
 		}
-		
+
 		if (!file_exists($db=NEMESIS_PATH.'newsletter.sqlite'))
 		{
 			chmod(NEMESIS_PATH, 0777);
@@ -392,7 +379,7 @@ class Newsletter
 			break;
 		}
 	}
-	
+
 	public function settings ()
 	{
 	}
@@ -411,13 +398,13 @@ class Newsletter
 			$mail->isHTML(true);
 			$mail->From = 'noreply@'.URL::$request['DOMAIN'];
 			$mail->FromName = 'Newsletter API';
-			$mail->addAddress($r['email']); 
+			$mail->addAddress($r['email']);
 			$mail->Subject = $object;
 			$mail->Body = $body;
-			
-			if(!$mail->send()) 
+
+			if(!$mail->send())
 				Api::error($mail->ErrorInfo);
-			
+
 			$this->dbQuery('UPDATE posts SET sending = ":sid" WHERE id = ":id"', array(':sid' => $r['id'], ':id' => $id));
 		}
 
@@ -427,5 +414,6 @@ class Newsletter
 
 }
 
+Api::CORS();
 Api::get('Newsletter');
 Api::error404();
