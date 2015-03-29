@@ -8,7 +8,6 @@
 class Session
 {
 	public static $life_time = 604800; // 1 week
-	public static $unique = 0;
 
 	public function __construct()
 	{
@@ -22,17 +21,14 @@ class Session
 			session_regenerate_id();
 	}
 
-	public function check($name, $key=0)
+	public function check($name)
 	{
 		if (!isset($_SESSION[$name]))
 			return false;
 
-		if (!$key)
-			return true; 
-		
-		$hash = $this->token($key);
+		$hash = $this->token();
 
-		if (($_SESSION[$name]['token'] != $hash) || ($_SESSION[$name]['time'] < time()))
+		if ($_SESSION[$name] < time())
 		{
 			unset($_SESSION[$name]);
 			session_destroy();
@@ -42,16 +38,9 @@ class Session
 		return true;
 	}
 
-	public function secure($name, $key)
+	public function secure($name)
 	{
-		$_SESSION[$name] = array();
-		$_SESSION[$name]['token'] = $this->token($key);
-		$_SESSION[$name]['time'] = time() + self::$life_time;
-	}
-
-	public function token($key)
-	{
-		return hash('sha256', $key.((self::$unique)? $_SERVER['HTTP_USER_AGENT'].$_SERVER['REMOTE_ADDR']:''));
+		$_SESSION[$name] = time() + self::$life_time;
 	}
 
 	public function kill($name)
