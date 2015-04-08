@@ -1,7 +1,7 @@
 <?php
 /*
-	nemesis-newsletter
-	Description : Manage a newsletter
+	nemesis-api-example 
+	Description : REST API to manage a newsletter
 	Dependencies :
 		nemesis-framework/core
 			core/class.Loader.php
@@ -13,17 +13,22 @@
 */
 
 /*
-* Load the NemesisFramework boostraper.
-*/
-require 'core/bootstrap.php';
-core_functions();
-core_autoloader();
-
-/*
 * Load the Composer autoloader.
 */
-if (file_exists($composerAutoloader=NEMESIS_PATH.'vendor/autoload.php'))
-	require $composerAutoloader;
+if (!file_exists($composerAutoloader='vendor/autoload.php'))
+{
+  echo 'Composer is not installed. Get it on http://getcomposer.org';
+  exit();
+}
+
+require $composerAutoloader;
+
+/*
+* Load the NemesisFramework boostraper.
+*/
+get_errors();
+core_functions();
+core_autoloader();
 
 $Loader = Loader::getInstance();
 $Loader->initClass('Router');
@@ -38,11 +43,6 @@ class Newsletter
 	private $dbResult = array();
 
 	private $session = null;
-
-	public function errors ()
-	{
-		echo file_get_contents(CORE.'errors.log');
-	}
 
 	public function login()
 	{
@@ -62,7 +62,7 @@ class Newsletter
 			if (sizeof($errors) > 0)
 				Api::error('Blank field', $errors);
 
-			$this->dbQuery('SELECT email, pwd FROM admins WHERE email = ":email" AND pwd = ":pwd"', array(':email' => $_REQUEST['email'], ':pwd' => $this->pwdHash($_REQUEST['pwd'])))
+			$this->dbQuery('SELECT email, pwd FROM admins WHERE email = ":email" AND pwd = ":pwd"', array(':email' => $_REQUEST['email'], ':pwd' => $this->pwdHash($_REQUEST['pwd'])));
 
 			if (!$this->dbResult[0] || $this->dbResult[0] && $this->dbResult[0]->fetch())
 				Api::error('Wrong email or password');
@@ -99,7 +99,7 @@ class Newsletter
 		{
 			if (!$this->db)
 			{
-				$this->db = new PDO("sqlite:".NEMESIS_PATH."newsletter.sqlite");
+				$this->db = new PDO("sqlite:".NEMESIS_PROCESS_PATH."newsletter.sqlite");
 				$this->db->beginTransaction();
 			}
 
@@ -170,11 +170,11 @@ class Newsletter
 			$this->createAdminSession($_REQUEST['email'], $_REQUEST['pwd']);
 		}
 
-		if (!file_exists($db=NEMESIS_PATH.'newsletter.sqlite'))
+		if (!file_exists($db=NEMESIS_PROCESS_PATH.'newsletter.sqlite'))
 		{
-			chmod(NEMESIS_PATH, 0777);
+			chmod(NEMESIS_PROCESS_PATH, 0777);
 			touch($db);
-			chmod(NEMESIS_PATH, 0755);
+			chmod(NEMESIS_PROCESS_PATH, 0755);
 		}
 
 		$structure = '
@@ -382,6 +382,7 @@ class Newsletter
 
 	public function settings ()
 	{
+      /* Not defined yet */
 	}
 
 	private function send($id, $object, $body)
@@ -415,5 +416,6 @@ class Newsletter
 }
 
 Api::CORS();
+Api::RESTMethods();
 Api::get('Newsletter');
 Api::error404();
