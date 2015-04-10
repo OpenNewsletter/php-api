@@ -1,6 +1,6 @@
 <?php
 /*
-	nemesis-api-example 
+	nemesis-api-example
 	Description : REST API to manage a newsletter
 	Dependencies :
 		nemesis-framework/core
@@ -119,7 +119,7 @@ class Newsletter
 
 	private function pwdHash($pwd)
 	{
-		require 'lib/password.php';
+		//require 'lib/password.php';
 		return password_hash($pwd, PASSWORD_BCRYPT, array("cost" => 7, "salt" => "newsletterS"));
 	}
 
@@ -151,7 +151,7 @@ class Newsletter
 			{
 				$randomPassword = key_generator(8);
 
-				require 'PHPMailerAutoload.php';
+				//require 'PHPMailerAutoload.php';
 				$mail = new PHPMailer;
 				$mail->From = 'noreply@'.URL::$request['DOMAIN'];
 				$mail->FromName = 'Newsletter API';
@@ -394,7 +394,7 @@ class Newsletter
 
 		while ($this->dbResult[0] && $r=$this->dbResult[0]->fetch()) {
 			//$r['email'], $object, $body;
-			require 'PHPMailerAutoload.php';
+			//require 'PHPMailerAutoload.php';
 			$mail = new PHPMailer;
 			$mail->isHTML(true);
 			$mail->From = 'noreply@'.URL::$request['DOMAIN'];
